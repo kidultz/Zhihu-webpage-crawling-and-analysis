@@ -1,0 +1,41 @@
+library(topicmodels)
+library(stm)
+library(tm)
+library(lda)
+library(LDAvis)
+library(servr)
+
+#LDA
+##1.Preprocess
+term.table <- wordsFreq
+vocab<-term.table$answerCorpus #create corpus
+get.terms<-function(x){
+  index<-match(x,vocab)      #get the word's ID
+  index<-index[!is.na(index)]  #remove the one not in corpus
+  rbind(as.integer(index-1),as.integer(rep(1,length(index))))  
+} 
+doc.list <- segmentCN(quora_data$answers)
+documents<-lapply(doc.list,get.terms)
+
+
+##2.LDA topic model
+K<-5     #topic numbers
+G<-5000  #Iteration times
+alpha<-0.10
+eta<-0.02
+fit<-lda.collapsed.gibbs.sampler(documents=documents,K=K,
+                                 vocab=vocab,num.iterations=G,alpha=alpha,eta=eta,
+                                 initial=NULL,burnin=0,compute.log.likelihood=TRUE)
+
+##3、LDAvis visualization
+theta<-t(apply(fit$document_sums+alpha,2,function(x)x/sum(x))) #document—topic distribution matrix
+phi<-t(apply(t(fit$topics)+eta,2,function(x)x/sum(x)))#topic-word distribution matrix
+term.frequency<-term.table$Freq  #word frequence
+doc.length<-sapply(documents,function(x)sum(x[2,]))  #length of each essay (how many words?)
+
+json<-createJSON(phi=phi,theta=theta,doc.length=doc.length,vocab=vocab,
+                 term.frequency=term.frequency)
+serVis(json,out.dir='C:\\Users\\DELL\\Desktop\\lda',open.browser=T)
+
+###convert into UTF-8 to avoid being accented or other characters,
+writeLines(iconv(readLines("C:\\Users\\DELL\\Desktop\\lda\\lda.json"),from="GB23080",to="UTF8"),file("C:\\Users\\DELL\\Desktop\\lda\\ldavis.js",encoding="UTF-8"))
